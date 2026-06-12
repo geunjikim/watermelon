@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stripe Your Watermelon</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #2d5a27;
+    --green-dark: #1a3a16;
+    --brown: #7b3f00;
+    --brown-dark: #5c2e00;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f7f6f3;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+    color: #1a1a1a;
+  }
+
+  .title-area { text-align: center; margin-bottom: 1.5rem; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #999; margin-bottom: 0.3rem; }
+  .subtitle { font-size: 12px; color: #aaa; }
+
+  .canvas-wrap { margin-bottom: 1.1rem; }
+
+  #wm-canvas {
+    border-radius: 50%;
+    cursor: crosshair;
+    display: block;
+    touch-action: none;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+  }
+
+  .tools { display: flex; gap: 12px; margin-bottom: 1.1rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .tool-group { display: flex; gap: 6px; align-items: center; }
+  .tool-label { font-size: 12px; color: #888; }
+
+  .color-btn {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer; transition: transform 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #888;
+  }
+  .color-btn.active { border-color: #1a1a1a; transform: scale(1.15); }
+
+  .size-btn {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1px solid #ddd; background: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: #888; font-size: 11px; font-weight: 500; transition: background 0.12s;
+  }
+  .size-btn.active, .size-btn:hover { background: #f0f0ee; color: #1a1a1a; }
+
+  .action-row { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+
+  .btn {
+    padding: 9px 22px; border-radius: var(--radius-sm);
+    border: 1px solid #ddd; background: #fff; color: #1a1a1a;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+    transition: background 0.12s, transform 0.1s;
+  }
+  .btn:hover { background: #f5f5f3; }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-submit { background: var(--green); color: #fff; border-color: var(--green); font-weight: 500; }
+  .btn-submit:hover { background: var(--green-dark); border-color: var(--green-dark); }
+
+  .btn-appeal { background: var(--brown); color: #fff; border-color: var(--brown); font-weight: 500; }
+  .btn-appeal:hover { background: var(--brown-dark); border-color: var(--brown-dark); }
+
+  #result-area {
+    display: none; flex-direction: column; align-items: center;
+    gap: 0.75rem; width: 100%; max-width: 420px;
+  }
+
+  .result-card {
+    width: 100%; background: #fff; border: 1px solid #ebebeb;
+    border-radius: var(--radius); padding: 1.5rem; text-align: center;
+  }
+
+  .result-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #bbb; margin-bottom: 0.5rem; }
+  .result-price { font-size: 44px; font-weight: 600; color: var(--green); line-height: 1; margin-bottom: 0.5rem; }
+  .price-change { font-size: 15px; font-weight: 500; margin-left: 8px; vertical-align: middle; }
+  .result-stars { font-size: 20px; letter-spacing: 3px; margin-bottom: 0.6rem; color: #f0a500; }
+  .result-comment { font-size: 15px; color: #333; line-height: 1.65; font-style: italic; }
+
+  .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.5rem 0; }
+  .loading-txt { font-size: 13px; color: #999; }
+  .loading-dots span {
+    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: #bbb; margin: 0 2px; animation: bounce 1.2s ease-in-out infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-5px); opacity: 1; } }
+
+  .hint { font-size: 12px; color: #bbb; text-align: center; max-width: 260px; line-height: 1.5; margin-bottom: 1rem; }
+
+  .appeal-section { width: 100%; max-width: 420px; }
+  .appeal-label { font-size: 12px; color: #666; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 6px; }
+  .appeal-badge { font-size: 10px; background: var(--brown); color: #fff; padding: 2px 8px; border-radius: 20px; }
+
+  #appeal-input {
+    width: 100%; padding: 10px 13px; border: 1px solid #ddd;
+    border-radius: var(--radius-sm); background: #fff; color: #1a1a1a;
+    font-family: inherit; font-size: 13px; resize: none; line-height: 1.5; outline: none;
+  }
+  #appeal-input:focus { border-color: var(--brown); }
+  #appeal-input::placeholder { color: #ccc; }
+
+  .appeal-row { display: flex; gap: 8px; margin-top: 0.5rem; justify-content: flex-end; }
+  .result-actions { display: flex; gap: 10px; }
+</style>
+</head>
+<body>
+
+<div class="title-area">
+  <div class="eyebrow">Limited Edition</div>
+  <div class="subtitle">수박에 줄무늬를 그려 가치를 높이세요</div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="wm-canvas" width="280" height="280"></canvas>
+</div>
+
+<div id="draw-ui">
+  <div class="tools">
+    <div class="tool-group">
+      <span class="tool-label">색상</span>
+      <button class="color-btn active" data-color="#4cae4a" style="background:#4cae4a;" title="초록"></button>
+      <button class="color-btn" data-color="#1a3a16" style="background:#1a3a16;" title="진초록"></button>
+      <button class="color-btn" data-color="#111111" style="background:#111;" title="검정"></button>
+      <button class="color-btn" data-color="eraser" style="background:#fff;border:1.5px solid #ccc;" title="지우개">✕</button>
+    </div>
+    <div class="tool-group">
+      <span class="tool-label">굵기</span>
+      <button class="size-btn active" data-size="3">S</button>
+      <button class="size-btn" data-size="7">M</button>
+      <button class="size-btn" data-size="14">L</button>
+    </div>
+  </div>
+
+  <div class="hint">마우스(또는 손가락)로 수박에 줄무늬를 그리세요</div>
+
+  <div class="action-row">
+    <button class="btn" id="clear-btn">초기화</button>
+    <button class="btn btn-submit" id="submit-btn">심사 요청</button>
+  </div>
+</div>
+
+<div id="result-area">
+  <div class="result-card">
+    <div class="result-label">감정가</div>
+    <div class="result-price" id="result-price"></div>
+    <div class="result-stars" id="result-stars"></div>
+    <div class="result-comment" id="result-comment"></div>
+  </div>
+
+  <div class="appeal-section" id="appeal-section" style="display:none;">
+    <div class="appeal-label">
+      <span class="appeal-badge">항소</span>
+      심사에 이의가 있으신가요? 직접 설득해보세요
+    </div>
+    <textarea id="appeal-input" rows="3" placeholder="이 줄무늬는 제가 3년간 수박밭에서 영감을 받아..."></textarea>
+    <div class="appeal-row">
+      <button class="btn" id="cancel-appeal-btn">취소</button>
+      <button class="btn btn-appeal" id="submit-appeal-btn">항소 제출</button>
+    </div>
+  </div>
+
+  <div class="result-actions" id="result-actions" style="display:none;">
+    <button class="btn" id="appeal-btn">항소하기</button>
+    <button class="btn" id="retry-btn">다시 그리기</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('wm-canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const cx = W/2, cy = H/2, r = W/2 - 4;
+
+let drawing = false, currentColor = '#4cae4a', isEraser = false;
+let currentSize = 3, hasDrawing = false, currentPrice = 0;
+let appealCount = 0, savedImageData = null;
+
+function drawBase() {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+  const g = ctx.createRadialGradient(cx-25, cy-30, 12, cx, cy, r);
+  g.addColorStop(0, '#5cb85a'); g.addColorStop(0.55, '#4cae4a'); g.addColorStop(1, '#2e7d30');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#1b5e20'; ctx.lineWidth = 3; ctx.stroke();
+}
+drawBase();
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * (W/rect.width), y: (src.clientY - rect.top) * (H/rect.height) };
+}
+function inCircle(p) { return (p.x-cx)**2 + (p.y-cy)**2 <= (r-2)**2; }
+
+function startDraw(e) {
+  e.preventDefault();
+  const pos = getPos(e);
+  if (!inCircle(pos)) return;
+  drawing = true; hasDrawing = true;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.clip();
+  if (isEraser) ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+  ctx.strokeStyle = currentColor;
+  ctx.lineWidth = isEraser ? currentSize * 3 : currentSize;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+}
+function doDraw(e) {
+  e.preventDefault();
+  if (!drawing) return;
+  const pos = getPos(e);
+  if (!inCircle(pos)) return;
+  ctx.lineTo(pos.x, pos.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+}
+function endDraw() {
+  if (!drawing) return;
+  drawing = false;
+  ctx.globalCompositeOperation = 'source-over'; ctx.restore();
+}
+
+canvas.addEventListener('mousedown', startDraw);
+canvas.addEventListener('mousemove', doDraw);
+canvas.addEventListener('mouseup', endDraw);
+canvas.addEventListener('mouseleave', endDraw);
+canvas.addEventListener('touchstart', startDraw, { passive: false });
+canvas.addEventListener('touchmove', doDraw, { passive: false });
+canvas.addEventListener('touchend', endDraw);
+
+document.querySelectorAll('.color-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    isEraser = btn.dataset.color === 'eraser';
+    if (!isEraser) currentColor = btn.dataset.color;
+  });
+});
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSize = parseInt(btn.dataset.size);
+  });
+});
+document.getElementById('clear-btn').addEventListener('click', () => {
+  hasDrawing = false;
+  ctx.clearRect(0, 0, W, H); drawBase();
+});
+
+function setLoading(msg) {
+  document.getElementById('result-price').innerHTML =
+    '<div class="loading-wrap"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-txt">' + msg + '</div></div>';
+  document.getElementById('result-stars').textContent = '';
+  document.getElementById('result-comment').textContent = '';
+  document.getElementById('result-actions').style.display = 'none';
+  document.getElementById('appeal-section').style.display = 'none';
+}
+
+function showResult(price, stars, comment, prevPrice) {
+  currentPrice = price;
+  let changeHtml = '';
+  if (prevPrice !== null) {
+    const diff = price - prevPrice;
+    if (diff !== 0) {
+      const col = diff > 0 ? '#c94040' : '#888';
+      changeHtml = ' <span class="price-change" style="color:' + col + ';">' +
+        (diff > 0 ? '+' : '') + diff.toLocaleString('ko-KR') + '원</span>';
+    }
+  }
+  document.getElementById('result-price').innerHTML = price.toLocaleString('ko-KR') + '원' + changeHtml;
+  const s = Math.max(1, Math.min(5, Math.round(stars)));
+  document.getElementById('result-stars').textContent = '★'.repeat(s) + '☆'.repeat(5-s);
+  document.getElementById('result-comment').textContent = '"' + comment + '"';
+  document.getElementById('result-actions').style.display = 'flex';
+  document.getElementById('appeal-btn').style.display = appealCount < 3 ? '' : 'none';
+}
+
+async function requestJudgment(appealText, prevPrice) {
+  const body = { imageData: savedImageData };
+  if (appealText) body.appealText = appealText;
+
+  const resp = await fetch('/api/judge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || '오류가 발생했습니다');
+  return data;
+}
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  if (!hasDrawing) { alert('수박에 줄무늬를 먼저 그려주세요!'); return; }
+  savedImageData = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+  appealCount = 0;
+  document.getElementById('draw-ui').style.display = 'none';
+  document.getElementById('result-area').style.display = 'flex';
+  setLoading('장인 감정사가 수박을 분석 중입니다...');
+  try {
+    const result = await requestJudgment(null, null);
+    showResult(result.price, result.stars, result.comment, null);
+  } catch(e) {
+    document.getElementById('result-price').textContent = '';
+    document.getElementById('result-comment').textContent = '오류: ' + e.message;
+    document.getElementById('result-actions').style.display = 'flex';
+    document.getElementById('appeal-btn').style.display = 'none';
+  }
+});
+
+document.getElementById('appeal-btn').addEventListener('click', () => {
+  document.getElementById('appeal-section').style.display = 'block';
+  document.getElementById('result-actions').style.display = 'none';
+  document.getElementById('appeal-input').value = '';
+  document.getElementById('appeal-input').focus();
+});
+document.getElementById('cancel-appeal-btn').addEventListener('click', () => {
+  document.getElementById('appeal-section').style.display = 'none';
+  document.getElementById('result-actions').style.display = 'flex';
+});
+document.getElementById('submit-appeal-btn').addEventListener('click', async () => {
+  const appealText = document.getElementById('appeal-input').value.trim();
+  if (!appealText) { alert('항소 내용을 입력해주세요.'); return; }
+  appealCount++;
+  const prev = currentPrice;
+  document.getElementById('appeal-section').style.display = 'none';
+  setLoading('감정사가 항소문을 면밀히 검토 중입니다...');
+  try {
+    const result = await requestJudgment(appealText, prev);
+    showResult(result.price, result.stars, result.comment, prev);
+  } catch(e) {
+    document.getElementById('result-price').textContent = '';
+    document.getElementById('result-comment').textContent = '오류: ' + e.message;
+    document.getElementById('result-actions').style.display = 'flex';
+  }
+});
+document.getElementById('retry-btn').addEventListener('click', () => {
+  hasDrawing = false; appealCount = 0; savedImageData = null;
+  ctx.clearRect(0, 0, W, H); drawBase();
+  document.getElementById('result-area').style.display = 'none';
+  document.getElementById('draw-ui').style.display = 'block';
+});
+</script>
+</body>
+</html>
